@@ -4,6 +4,13 @@ name = "phash"
 version = "0.1.0"
 
 [dependencies]
+error-chain = "0.10.0"
+futures = "0.1"
+hyper = "0.11"
+hyper-tls = "0.1"
 image = "0.13"
-img_hash = { version = "2.0", features = ["rust-image"] }
+tokio-core = "0.1"
 
+[dependencies.img_hash]
+features = ["rust-image"]
+version = "2.0"
