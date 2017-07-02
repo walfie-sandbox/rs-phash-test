@@ -11,13 +11,22 @@ extern crate futures;
 use futures::{Future, IntoFuture, Stream};
 use hyper_tls::HttpsConnector;
 use img_hash::ImageHash;
+use std::collections::HashSet;
 use tokio_core::reactor::Core;
 
 mod error;
+mod bosses;
 
+use bosses::{BOSSES, Boss, EXPECTED_PAIRS, Language};
 use error::*;
 
 type Client = hyper::Client<HttpsConnector<hyper::client::HttpConnector>>;
+
+#[derive(Debug, PartialEq)]
+struct BossWithHash {
+    boss: &'static Boss,
+    hash: ImageHash,
+}
 
 quick_main!(|| -> Result<()> {
     let mut core = Core::new().chain_err(|| "failed to initialize core")?;
@@ -26,53 +35,43 @@ quick_main!(|| -> Result<()> {
         .connector(HttpsConnector::new(4, &handle).chain_err(|| "HTTPS error")?)
         .build(&handle);
 
-    let compare = Boss::new(
-        "Lv60 Yggdrasil Omega",
-        "https://pbs.twimg.com/media/CT6cDD3UkAEnP8Y.jpg:large",
-        "https://pbs.twimg.com/media/CfuZgxLUkAArdGe.jpg:large",
-    ).compare(&client);
+    let bosses_future = futures::future::join_all(BOSSES.iter().map(move |boss| {
+        let url = format!("{}:large", boss.url);
+        get_and_hash(&client, &url).map(move |hash| BossWithHash { boss, hash })
+    }));
 
-    assert_eq!(core.run(compare).chain_err(|| "failed to compare")?, ());
+    println!("Fetching bosses...");
+
+    let bosses = core.run(bosses_future).chain_err(
+        || "failed to get boss hashes",
+    )?;
+
+    println!("{:#?}", bosses);
+
+    println!("Comparing boss image hashes...");
+    let mut results = HashSet::new();
+
+    for b1 in bosses.iter() {
+        for b2 in bosses.iter() {
+            if b1.boss.language != b2.boss.language && b1.boss.level != b2.boss.level &&
+                b1.hash.dist(&b2.hash) == 0
+            {
+                if b1.boss.language == Language::Ja {
+                    results.insert((b1.boss.name, b2.boss.name));
+                } else {
+                    results.insert((b2.boss.name, b1.boss.name));
+                }
+            }
+        }
+    }
+
+    use std::iter::FromIterator;
+    let expected = HashSet::from_iter(EXPECTED_PAIRS.iter().cloned());
+
+    assert_eq!(results, expected);
 
     Ok(())
 });
-
-struct Boss {
-    name: &'static str,
-    url1: &'static str,
-    url2: &'static str,
-}
-
-impl Boss {
-    fn new(name: &'static str, url1: &'static str, url2: &'static str) -> Self {
-        Boss { name, url1, url2 }
-    }
-
-    fn compare(&self, client: &Client) -> Box<Future<Item = (), Error = Error>> {
-        let name = ::std::borrow::Cow::Borrowed(self.name);
-
-        let result =
-            compute_dist(client, self.url1, self.url2).and_then(move |dist| if dist == 0 {
-                Ok(())
-            } else {
-                bail!(format!("{} distance: {}", name, dist))
-            });
-
-        Box::new(result)
-    }
-}
-
-fn compute_dist(
-    client: &Client,
-    url1: &str,
-    url2: &str,
-) -> Box<Future<Item = usize, Error = Error>> {
-    let hash1 = get_and_hash(client, url1);
-    let hash2 = get_and_hash(client, url2);
-
-    Box::new(hash1.join(hash2).map(|(h1, h2)| h1.dist(&h2)))
-}
-
 
 fn get_and_hash(client: &Client, url: &str) -> Box<Future<Item = ImageHash, Error = Error>> {
     let url_string = url.to_string();
@@ -83,12 +82,17 @@ fn get_and_hash(client: &Client, url: &str) -> Box<Future<Item = ImageHash, Erro
         .into_future()
         .flatten()
         .and_then(|resp| {
+            println!("got response");
+
             resp.body().concat2().then(|r| {
+                println!("concat");
+
                 r.chain_err(|| "failed to get body")
             })
         })
         .and_then(|bytes| hash(&bytes).into_future())
         .then(move |r| {
+            println!("Fetched url {}", url_string);
             r.chain_err(|| format!("failed to get URL: `{}`", url_string))
         });
 
