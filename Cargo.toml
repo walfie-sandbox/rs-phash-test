@@ -1,0 +1,9 @@
+[package]
+authors = ["Walfie <walfington@gmail.com>"]
+name = "phash"
+version = "0.1.0"
+
+[dependencies]
+image = "0.13"
+img_hash = { version = "2.0", features = ["rust-image"] }
+
