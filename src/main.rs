@@ -26,18 +26,47 @@ quick_main!(|| -> Result<()> {
         .connector(HttpsConnector::new(4, &handle).chain_err(|| "HTTPS error")?)
         .build(&handle);
 
-    let ygg = compare(
-        &client,
+    let compare = Boss::new(
+        "Lv60 Yggdrasil Omega",
         "https://pbs.twimg.com/media/CT6cDD3UkAEnP8Y.jpg:large",
         "https://pbs.twimg.com/media/CfuZgxLUkAArdGe.jpg:large",
-    );
+    ).compare(&client);
 
-    assert_eq!(core.run(ygg).chain_err(|| "failed to compare")?, 0);
+    assert_eq!(core.run(compare).chain_err(|| "failed to compare")?, ());
 
     Ok(())
 });
 
-fn compare(client: &Client, url1: &str, url2: &str) -> Box<Future<Item = usize, Error = Error>> {
+struct Boss {
+    name: &'static str,
+    url1: &'static str,
+    url2: &'static str,
+}
+
+impl Boss {
+    fn new(name: &'static str, url1: &'static str, url2: &'static str) -> Self {
+        Boss { name, url1, url2 }
+    }
+
+    fn compare(&self, client: &Client) -> Box<Future<Item = (), Error = Error>> {
+        let name = ::std::borrow::Cow::Borrowed(self.name);
+
+        let result =
+            compute_dist(client, self.url1, self.url2).and_then(move |dist| if dist == 0 {
+                Ok(())
+            } else {
+                bail!(format!("{} distance: {}", name, dist))
+            });
+
+        Box::new(result)
+    }
+}
+
+fn compute_dist(
+    client: &Client,
+    url1: &str,
+    url2: &str,
+) -> Box<Future<Item = usize, Error = Error>> {
     let hash1 = get_and_hash(client, url1);
     let hash2 = get_and_hash(client, url2);
 
