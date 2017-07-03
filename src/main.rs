@@ -1,6 +1,7 @@
 #[macro_use]
 extern crate error_chain;
 
+extern crate stream_dct;
 extern crate image;
 extern crate hyper;
 extern crate hyper_tls;
