@@ -1,8 +1,10 @@
 use image::{DynamicImage, FilterType};
-use std::f64::consts::PI;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct ImageHash(i64);
+
+const SIZE: usize = 32;
+const SMALL_SIZE: usize = 8;
 
 impl ImageHash {
     pub fn new(img: &DynamicImage) -> Self {
@@ -19,97 +21,60 @@ fn get_hash(img: &DynamicImage) -> i64 {
         vals[x as usize][y as usize] = p.data[0] as f64;
     }
 
-    let dct_vals = apply_dct(vals);
+    let dct_vals = apply_dct(&vals);
 
-    let mut total: f64 = dct_vals.iter().take(SMALL_SIZE).fold(0.0, |acc, &arr| {
-        acc + arr.iter().take(SMALL_SIZE).sum::<f64>()
-    });
+    let dct_slice = dct_vals
+        .iter()
+        .take(SMALL_SIZE)
+        .flat_map(|arr| &arr[0..SMALL_SIZE])
+        .cloned()
+        .collect::<Vec<f64>>();
 
-    total -= dct_vals[0][0];
+    let total: f64 = dct_slice.iter().skip(1).sum();
 
     let average = total / (SMALL_SIZE * SMALL_SIZE - 1) as f64;
 
-    let mut hash: i64 = 0;
-
-    for i in 0..(SMALL_SIZE) {
-        for j in 0..(SMALL_SIZE) {
-            if dct_vals[i][j] > average {
-                hash |= 1 << (i * SMALL_SIZE + j);
-            }
-        }
-    }
-
-    hash |= 1;
+    let hash = dct_slice.into_iter().enumerate().skip(1).fold(
+        0,
+        |acc, (i, v)| {
+            if v > average { acc | (1 << i) } else { acc }
+        },
+    );
 
     hash
 }
 
-fn apply_dct(f: [[f64; SIZE]; SIZE]) -> [[f64; SIZE]; SIZE] {
+fn apply_dct(f: &[[f64; SIZE]; SIZE]) -> [[f64; SIZE]; SIZE] {
+    use std::f64::consts::{FRAC_1_SQRT_2, PI};
+
     let mut out = [[0.0; SIZE]; SIZE];
 
     for u in 0..SIZE {
-        let u_index = u;
-        let u = u as f64;
-
         for v in 0..SIZE {
-            let v_index = v;
-            let v = v as f64;
-
             let mut sum = 0.0;
 
             for i in 0..SIZE {
                 for j in 0..SIZE {
-                    sum += ((2 * i + 1) as f64 * u * PI / (2.0 * SIZE_F64)).cos() *
-                        ((2 * j + 1) as f64 * v * PI / (2.0 * SIZE_F64)).cos() *
-                        f[i][j];
+                    sum += f[i][j] *
+                        (PI * u as f64 * (2 * i + 1) as f64 / (2.0 * SIZE as f64)).cos() *
+                        (PI * v as f64 * (2 * j + 1) as f64 / (2.0 * SIZE as f64)).cos();
                 }
             }
 
-            sum *= COEFFICIENTS[u_index] * COEFFICIENTS[v_index] / 4.0;
-            out[u_index][v_index] = sum;
+            if u == 0 {
+                sum *= FRAC_1_SQRT_2
+            }
+
+            if v == 0 {
+                sum *= FRAC_1_SQRT_2
+            }
+
+            out[u][v] = sum * 0.25;
         }
     }
 
     out
 }
-
-const SIZE: usize = 32;
-const SIZE_F64: f64 = SIZE as f64;
-const SMALL_SIZE: usize = 8;
-const COEFFICIENTS: [f64; SIZE] = [
-    0.707106781186547524400844362104849039284835937688474036588,
-    1.0,
-    1.0,
-    1.0,
-    1.0,
-    1.0,
-    1.0,
-    1.0,
-    1.0,
-    1.0,
-    1.0,
-    1.0,
-    1.0,
-    1.0,
-    1.0,
-    1.0,
-    1.0,
-    1.0,
-    1.0,
-    1.0,
-    1.0,
-    1.0,
-    1.0,
-    1.0,
-    1.0,
-    1.0,
-    1.0,
-    1.0,
-    1.0,
-    1.0,
-    1.0,
-    1.0,
-];
 
 #[cfg(test)]
 mod test {
@@ -138,8 +103,8 @@ mod test {
             Ok(img)
         }
 
-        let h1 = ImageHash::new(load_and_crop(en).unwrap());
-        let h2 = ImageHash::new(load_and_crop(jp).unwrap());
+        let h1 = ImageHash::new(&load_and_crop(en).unwrap());
+        let h2 = ImageHash::new(&load_and_crop(jp).unwrap());
 
         assert_eq!(h1, h2);
     }
