@@ -49,27 +49,25 @@ fn apply_dct(f: &[[f64; SIZE]; SIZE]) -> [[f64; SIZE]; SIZE] {
 
     let mut out = [[0.0; SIZE]; SIZE];
 
-    for u in 0..SIZE {
-        for v in 0..SIZE {
-            let mut sum = 0.0;
-
-            for i in 0..SIZE {
-                for j in 0..SIZE {
-                    sum += f[i][j] *
+    for (u, out_arr) in out.iter_mut().enumerate() {
+        for (v, out_val) in out_arr.iter_mut().enumerate() {
+            for (i, arr) in f.iter().enumerate() {
+                for (j, val) in arr.iter().enumerate() {
+                    *out_val += val *
                         (PI * u as f64 * (2 * i + 1) as f64 / (2.0 * SIZE as f64)).cos() *
                         (PI * v as f64 * (2 * j + 1) as f64 / (2.0 * SIZE as f64)).cos();
                 }
             }
 
             if u == 0 {
-                sum *= FRAC_1_SQRT_2
+                *out_val *= FRAC_1_SQRT_2
             }
 
             if v == 0 {
-                sum *= FRAC_1_SQRT_2
+                *out_val *= FRAC_1_SQRT_2
             }
 
-            out[u][v] = sum * 0.25;
+            *out_val *= 0.25;
         }
     }
 
