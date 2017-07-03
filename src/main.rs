@@ -53,7 +53,7 @@ quick_main!(|| -> Result<()> {
 
     for b1 in bosses.iter() {
         for b2 in bosses.iter() {
-            if b1.boss.language != b2.boss.language && b1.boss.level != b2.boss.level &&
+            if b1.boss.language != b2.boss.language && b1.boss.level == b2.boss.level &&
                 b1.hash.dist(&b2.hash) == 0
             {
                 if b1.boss.language == Language::Ja {
@@ -106,11 +106,7 @@ fn hash(bytes: &[u8]) -> Result<ImageHash> {
         || "failed to load bytes",
     )?;
     let (w, h) = img.dimensions();
-    img.crop(0, 0, w, h * 3 / 4);
+    img = img.crop(0, 0, w, h * 3 / 4);
 
-    Ok(img_hash::ImageHash::hash(
-        &img,
-        8,
-        img_hash::HashType::Gradient,
-    ))
+    Ok(img_hash::ImageHash::hash(&img, 8, img_hash::HashType::DCT))
 }
