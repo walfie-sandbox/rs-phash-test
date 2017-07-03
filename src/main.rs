@@ -46,8 +46,6 @@ quick_main!(|| -> Result<()> {
         || "failed to get boss hashes",
     )?;
 
-    println!("{:#?}", bosses);
-
     println!("Comparing boss image hashes...");
     let mut results = HashSet::new();
 
