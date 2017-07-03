@@ -2,7 +2,6 @@
 extern crate error_chain;
 
 extern crate image;
-extern crate img_hash;
 extern crate hyper;
 extern crate hyper_tls;
 extern crate tokio_core;
@@ -10,10 +9,11 @@ extern crate futures;
 
 use futures::{Future, IntoFuture, Stream};
 use hyper_tls::HttpsConnector;
-use img_hash::ImageHash;
+use phash::ImageHash;
 use std::collections::HashSet;
 use tokio_core::reactor::Core;
 
+mod phash;
 mod error;
 mod bosses;
 
@@ -54,7 +54,7 @@ quick_main!(|| -> Result<()> {
     for b1 in bosses.iter() {
         for b2 in bosses.iter() {
             if b1.boss.language != b2.boss.language && b1.boss.level == b2.boss.level &&
-                b1.hash.dist(&b2.hash) == 0
+                b1.hash == b2.hash
             {
                 if b1.boss.language == Language::Ja {
                     results.insert((b1.boss.name, b2.boss.name));
@@ -108,5 +108,5 @@ fn hash(bytes: &[u8]) -> Result<ImageHash> {
     let (w, h) = img.dimensions();
     img = img.crop(0, 0, w, h * 3 / 4);
 
-    Ok(img_hash::ImageHash::hash(&img, 8, img_hash::HashType::DCT))
+    Ok(phash::ImageHash::new(&img))
 }
